@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heap Sort Visualization (Tree Method)</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+--bg-color:#0f172a;
+--card-bg:#1e293b;
+--primary-gradient:linear-gradient(135deg,#3b82f6,#8b5cf6);
+--node-text:#ffffff;
+--highlight:#facc15;
+--swap:#ef4444;
+--sorted:#22c55e;
+--accent:#38bdf8;
+}
+
+body{
+margin:0;
+padding:0;
+background-color:var(--bg-color);
+color:white;
+font-family:'Poppins',sans-serif;
+display:flex;
+flex-direction:column;
+align-items:center;
+min-height:100vh;
+overflow-x:hidden;
+}
+
+header{text-align:center;padding:20px;}
+
+h1{
+margin:0;
+font-weight:600;
+background:var(--primary-gradient);
+-webkit-background-clip:text;
+-webkit-text-fill-color:transparent;
+font-size:2rem;
+}
+
+.controls{
+background:var(--card-bg);
+padding:15px 25px;
+border-radius:12px;
+display:flex;
+gap:15px;
+flex-wrap:wrap;
+justify-content:center;
+align-items:center;
+margin-bottom:20px;
+}
+
+input,select,button{
+padding:8px 12px;
+border-radius:6px;
+border:none;
+outline:none;
+font-family:inherit;
+}
+
+input{background:#334155;color:white;width:150px;}
+
+button{
+cursor:pointer;
+background:#334155;
+color:white;
+transition:all .2s;
+}
+
+button:hover{background:#475569;}
+
+.btn-start{background:#22c55e;}
+.btn-reset{background:#ef4444;}
+
+#viz-container{
+position:relative;
+width:900px;
+height:450px;
+display:flex;
+justify-content:center;
+}
+
+canvas{
+position:absolute;
+top:0;
+left:0;
+z-index:1;
+}
+
+.node-layer{
+position:absolute;
+width:100%;
+height:100%;
+z-index:2;
+}
+
+.array-container{
+display:flex;
+gap:8px;
+margin-top:30px;
+padding:20px;
+background:rgba(255,255,255,0.05);
+border-radius:12px;
+}
+
+.array-cell{
+width:45px;
+height:45px;
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+background:var(--card-bg);
+border:1px solid #475569;
+border-radius:6px;
+position:relative;
+transition:all .3s;
+}
+
+.index-label{
+font-size:.7rem;
+color:#94a3b8;
+position:absolute;
+top:-18px;
+}
+
+.node-circle{
+position:absolute;
+width:50px;
+height:50px;
+border-radius:50%;
+display:flex;
+align-items:center;
+justify-content:center;
+font-weight:bold;
+transition:transform .5s ease,background .3s;
+background:var(--primary-gradient);
+}
+
+.node-active{box-shadow:0 0 20px var(--highlight);}
+.node-swap{box-shadow:0 0 20px var(--swap);}
+.node-sorted{background:var(--sorted)!important;}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>Heap Sort Visualization (Tree Method)</h1>
+<div id="status-box">Ready to sort...</div>
+</header>
+
+<div class="controls">
+<input type="text" id="customInput" placeholder="12,7,15,5">
+<button onclick="handleCustomInput()">Set Array</button>
+<button onclick="generateRandom()">Random</button>
+<span>|</span>
+<button class="btn-start" onclick="startSort()">Start</button>
+<button onclick="pauseSort()" id="pauseBtn">Pause</button>
+<button class="btn-reset" onclick="reset()">Reset</button>
+
+<select id="speed">
+<option value="1200">Slow</option>
+<option value="700" selected>Medium</option>
+<option value="300">Fast</option>
+</select>
+</div>
+
+<div id="viz-container">
+<canvas id="treeCanvas" width="900" height="450"></canvas>
+<div id="nodes-layer" class="node-layer"></div>
+</div>
+
+<div class="array-container" id="array-visual"></div>
+
+<script>
+
+let array=[15,23,10,5,8,20,3];
+let heapSize=array.length;
+let isPaused=false;
+let isRunning=false;
+
+const canvas=document.getElementById("treeCanvas");
+const ctx=canvas.getContext("2d");
+const nodesLayer=document.getElementById("nodes-layer");
+const arrayVisual=document.getElementById("array-visual");
+const statusBox=document.getElementById("status-box");
+
+const getPosition=(index,total)=>{
+const level=Math.floor(Math.log2(index+1));
+const y=60+level*85;
+const nodesInLevel=Math.pow(2,level);
+const pos=index-(nodesInLevel-1);
+const section=900/nodesInLevel;
+const x=section*pos+section/2;
+return{x,y};
+};
+
+function drawEdges(){
+ctx.clearRect(0,0,canvas.width,canvas.height);
+ctx.strokeStyle="rgba(255,255,255,0.2)";
+ctx.lineWidth=2;
+
+for(let i=0;i<heapSize;i++){
+const left=2*i+1;
+const right=2*i+2;
+const parent=getPosition(i,heapSize);
+
+[left,right].forEach(child=>{
+if(child<heapSize){
+const c=getPosition(child,heapSize);
+ctx.beginPath();
+ctx.moveTo(parent.x,parent.y);
+ctx.lineTo(c.x,c.y);
+ctx.stroke();
+}
+});
+}
+}
+
+function render(){
+nodesLayer.innerHTML="";
+arrayVisual.innerHTML="";
+drawEdges();
+
+array.forEach((val,i)=>{
+
+if(i<heapSize){
+
+const pos=getPosition(i,heapSize);
+
+const node=document.createElement("div");
+node.className="node-circle";
+node.id=`node-${i}`;
+node.style.left=`${pos.x-25}px`;
+node.style.top=`${pos.y-25}px`;
+node.innerHTML=val;
+
+nodesLayer.appendChild(node);
+}
+
+const cell=document.createElement("div");
+cell.className="array-cell";
+cell.id=`cell-${i}`;
+cell.innerHTML=`<span class="index-label">${i}</span>${val}`;
+arrayVisual.appendChild(cell);
+
+});
+}
+
+async function wait(){
+const speed=document.getElementById("speed").value;
+return new Promise(resolve=>{
+const check=()=>{
+if(!isPaused)resolve();
+else setTimeout(check,100);
+};
+setTimeout(check,speed);
+});
+}
+
+function highlight(arr,type){
+arr.forEach(i=>{
+const node=document.getElementById(`node-${i}`);
+if(node)node.classList.add(type);
+});
+}
+
+function clearHighlights(){
+document.querySelectorAll(".node-circle").forEach(n=>{
+n.classList.remove("node-active","node-swap");
+});
+}
+
+async function swap(i,j){
+
+highlight([i,j],"node-swap");
+
+const nodeI=document.getElementById(`node-${i}`);
+const nodeJ=document.getElementById(`node-${j}`);
+
+const posI=getPosition(i,heapSize);
+const posJ=getPosition(j,heapSize);
+
+nodeI.style.transform=`translate(${posJ.x-posI.x}px,${posJ.y-posI.y}px)`;
+nodeJ.style.transform=`translate(${posI.x-posJ.x}px,${posI.y-posJ.y}px)`;
+
+await wait();
+
+[array[i],array[j]]=[array[j],array[i]];
+
+render();
+clearHighlights();
+}
+
+async function heapify(n,i){
+
+let largest=i;
+let l=2*i+1;
+let r=2*i+2;
+
+highlight([i],"node-active");
+await wait();
+
+if(l<n && array[l]>array[largest])largest=l;
+if(r<n && array[r]>array[largest])largest=r;
+
+if(largest!==i){
+await swap(i,largest);
+await heapify(n,largest);
+}
+
+clearHighlights();
+}
+
+async function heapSort(){
+
+isRunning=true;
+let n=array.length;
+
+for(let i=Math.floor(n/2)-1;i>=0;i--)
+await heapify(n,i);
+
+for(let i=n-1;i>0;i--){
+
+await swap(0,i);
+
+heapSize=i;
+render();
+
+document.getElementById(`cell-${i}`).classList.add("node-sorted");
+
+await heapify(heapSize,0);
+}
+
+document.getElementById("cell-0").classList.add("node-sorted");
+statusBox.innerText="Sorting Complete!";
+isRunning=false;
+}
+
+function startSort(){
+if(isRunning){isPaused=false;return;}
+heapSort();
+}
+
+function pauseSort(){
+isPaused=!isPaused;
+document.getElementById("pauseBtn").innerText=isPaused?"Resume":"Pause";
+}
+
+function reset(){
+isRunning=false;
+isPaused=false;
+generateRandom();
+}
+
+function generateRandom(){
+array=Array.from({length:10},()=>Math.floor(Math.random()*90)+10);
+heapSize=array.length;
+render();
+}
+
+function handleCustomInput(){
+
+const input=document.getElementById("customInput").value;
+if(!input)return;
+
+const newArr=input.split(",").map(n=>parseInt(n.trim())).filter(n=>!isNaN(n));
+
+array=newArr;
+heapSize=array.length;
+
+render();
+}
+
+render();
+
+</script>
+
+</body>
+</html>
