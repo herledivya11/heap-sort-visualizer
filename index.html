@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Heap Sort Visualization (Tree Method)</title>
@@ -31,7 +33,10 @@ min-height:100vh;
 overflow-x:hidden;
 }
 
-header{text-align:center;padding:20px;}
+header{
+text-align:center;
+padding:20px;
+}
 
 h1{
 margin:0;
@@ -62,7 +67,11 @@ outline:none;
 font-family:inherit;
 }
 
-input{background:#334155;color:white;width:150px;}
+input{
+background:#334155;
+color:white;
+width:150px;
+}
 
 button{
 cursor:pointer;
@@ -71,7 +80,9 @@ color:white;
 transition:all .2s;
 }
 
-button:hover{background:#475569;}
+button:hover{
+background:#475569;
+}
 
 .btn-start{background:#22c55e;}
 .btn-reset{background:#ef4444;}
@@ -84,7 +95,7 @@ display:flex;
 justify-content:center;
 }
 
-canvas{
+#treeCanvas{
 position:absolute;
 top:0;
 left:0;
@@ -144,6 +155,12 @@ background:var(--primary-gradient);
 .node-active{box-shadow:0 0 20px var(--highlight);}
 .node-swap{box-shadow:0 0 20px var(--swap);}
 .node-sorted{background:var(--sorted)!important;}
+
+#complexityChart{
+position:relative;
+width:100% !important;
+height:400px !important;
+}
 </style>
 </head>
 
@@ -177,9 +194,41 @@ background:var(--primary-gradient);
 
 <div class="array-container" id="array-visual"></div>
 
-<script>
+<!-- Swap comparison -->
+<div style="margin-top:40px;width:900px">
+<h2 style="text-align:center;color:#38bdf8;margin-bottom:20px">
+Swap Comparison
+</h2>
 
+<div style="display:flex;justify-content:center;gap:30px">
+<div style="background:var(--card-bg);padding:20px;border-radius:12px;width:220px;text-align:center">
+<h3 style="color:#22c55e;margin-bottom:10px">Greedy (Heap Sort)</h3>
+<div style="font-size:28px;font-weight:bold" id="greedySwaps">0</div>
+<div style="font-size:12px;color:#94a3b8">Total Swaps</div>
+</div>
+
+<div style="background:var(--card-bg);padding:20px;border-radius:12px;width:220px;text-align:center">
+<h3 style="color:#facc15;margin-bottom:10px">Divide & Conquer</h3>
+<div style="font-size:28px;font-weight:bold" id="dcSwaps">0</div>
+<div style="font-size:12px;color:#94a3b8">Estimated Swaps</div>
+</div>
+</div>
+</div>
+
+<!-- Graph -->
+<div style="width:900px;margin-top:40px;background:var(--card-bg);padding:25px;border-radius:12px">
+<h2 style="text-align:center;color:#38bdf8;margin-bottom:20px">
+Time Complexity Growth
+</h2>
+<canvas id="complexityChart"></canvas>
+</div>
+
+<script>
 let array=[15,23,10,5,8,20,3];
+let greedySwapCount=0;
+let dcSwapEstimate=0;
+let chartInstance=null;
+
 let heapSize=array.length;
 let isPaused=false;
 let isRunning=false;
@@ -190,7 +239,7 @@ const nodesLayer=document.getElementById("nodes-layer");
 const arrayVisual=document.getElementById("array-visual");
 const statusBox=document.getElementById("status-box");
 
-const getPosition=(index,total)=>{
+const getPosition=(index)=>{
 const level=Math.floor(Math.log2(index+1));
 const y=60+level*85;
 const nodesInLevel=Math.pow(2,level);
@@ -208,11 +257,11 @@ ctx.lineWidth=2;
 for(let i=0;i<heapSize;i++){
 const left=2*i+1;
 const right=2*i+2;
-const parent=getPosition(i,heapSize);
+const parent=getPosition(i);
 
 [left,right].forEach(child=>{
 if(child<heapSize){
-const c=getPosition(child,heapSize);
+const c=getPosition(child);
 ctx.beginPath();
 ctx.moveTo(parent.x,parent.y);
 ctx.lineTo(c.x,c.y);
@@ -228,10 +277,8 @@ arrayVisual.innerHTML="";
 drawEdges();
 
 array.forEach((val,i)=>{
-
 if(i<heapSize){
-
-const pos=getPosition(i,heapSize);
+const pos=getPosition(i);
 
 const node=document.createElement("div");
 node.className="node-circle";
@@ -248,7 +295,6 @@ cell.className="array-cell";
 cell.id=`cell-${i}`;
 cell.innerHTML=`<span class="index-label">${i}</span>${val}`;
 arrayVisual.appendChild(cell);
-
 });
 }
 
@@ -256,7 +302,7 @@ async function wait(){
 const speed=document.getElementById("speed").value;
 return new Promise(resolve=>{
 const check=()=>{
-if(!isPaused)resolve();
+if(!isPaused) resolve();
 else setTimeout(check,100);
 };
 setTimeout(check,speed);
@@ -266,7 +312,7 @@ setTimeout(check,speed);
 function highlight(arr,type){
 arr.forEach(i=>{
 const node=document.getElementById(`node-${i}`);
-if(node)node.classList.add(type);
+if(node) node.classList.add(type);
 });
 }
 
@@ -277,28 +323,22 @@ n.classList.remove("node-active","node-swap");
 }
 
 async function swap(i,j){
-
 highlight([i,j],"node-swap");
-
-const nodeI=document.getElementById(`node-${i}`);
-const nodeJ=document.getElementById(`node-${j}`);
-
-const posI=getPosition(i,heapSize);
-const posJ=getPosition(j,heapSize);
-
-nodeI.style.transform=`translate(${posJ.x-posI.x}px,${posJ.y-posI.y}px)`;
-nodeJ.style.transform=`translate(${posI.x-posJ.x}px,${posI.y-posJ.y}px)`;
-
 await wait();
 
 [array[i],array[j]]=[array[j],array[i]];
+
+greedySwapCount++;
+document.getElementById("greedySwaps").innerText=greedySwapCount;
+
+dcSwapEstimate=Math.floor(greedySwapCount*0.8);
+document.getElementById("dcSwaps").innerText=dcSwapEstimate;
 
 render();
 clearHighlights();
 }
 
 async function heapify(n,i){
-
 let largest=i;
 let l=2*i+1;
 let r=2*i+2;
@@ -306,8 +346,8 @@ let r=2*i+2;
 highlight([i],"node-active");
 await wait();
 
-if(l<n && array[l]>array[largest])largest=l;
-if(r<n && array[r]>array[largest])largest=r;
+if(l<n && array[l]>array[largest]) largest=l;
+if(r<n && array[r]>array[largest]) largest=r;
 
 if(largest!==i){
 await swap(i,largest);
@@ -318,7 +358,6 @@ clearHighlights();
 }
 
 async function heapSort(){
-
 isRunning=true;
 let n=array.length;
 
@@ -326,24 +365,23 @@ for(let i=Math.floor(n/2)-1;i>=0;i--)
 await heapify(n,i);
 
 for(let i=n-1;i>0;i--){
-
 await swap(0,i);
-
 heapSize=i;
 render();
-
-document.getElementById(`cell-${i}`).classList.add("node-sorted");
-
 await heapify(heapSize,0);
 }
 
-document.getElementById("cell-0").classList.add("node-sorted");
 statusBox.innerText="Sorting Complete!";
 isRunning=false;
+
+drawComplexityGraph();
 }
 
 function startSort(){
-if(isRunning){isPaused=false;return;}
+if(isRunning){
+isPaused=false;
+return;
+}
 heapSort();
 }
 
@@ -355,6 +393,12 @@ document.getElementById("pauseBtn").innerText=isPaused?"Resume":"Pause";
 function reset(){
 isRunning=false;
 isPaused=false;
+greedySwapCount=0;
+dcSwapEstimate=0;
+
+document.getElementById("greedySwaps").innerText=0;
+document.getElementById("dcSwaps").innerText=0;
+
 generateRandom();
 }
 
@@ -365,20 +409,69 @@ render();
 }
 
 function handleCustomInput(){
-
 const input=document.getElementById("customInput").value;
-if(!input)return;
+if(!input) return;
 
-const newArr=input.split(",").map(n=>parseInt(n.trim())).filter(n=>!isNaN(n));
+const newArr=input
+.split(",")
+.map(n=>parseInt(n.trim()))
+.filter(n=>!isNaN(n));
 
 array=newArr;
 heapSize=array.length;
-
 render();
 }
 
-render();
+function drawComplexityGraph(){
+const ctxChart=document.getElementById("complexityChart").getContext("2d");
 
+if(chartInstance){
+chartInstance.destroy();
+}
+
+const n=[10,50,100,200,500];
+const heap=n.map(x=>x*Math.log2(x));
+const divide=n.map(x=>x*Math.log2(x)*0.8);
+
+chartInstance=new Chart(ctxChart,{
+type:'line',
+data:{
+labels:n,
+datasets:[
+{
+label:'Heap Sort (Greedy)',
+data:heap,
+borderWidth:3
+},
+{
+label:'Divide & Conquer',
+data:divide,
+borderWidth:3
+}
+]
+},
+options:{
+responsive:true,
+maintainAspectRatio:false,
+plugins:{
+legend:{
+labels:{color:'white'}
+}
+},
+scales:{
+x:{
+ticks:{color:'white'}
+},
+y:{
+ticks:{color:'white'}
+}
+}
+}
+});
+}
+
+render();
+drawComplexityGraph();
 </script>
 
 </body>
